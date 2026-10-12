@@ -1,0 +1,18 @@
+UrbanEye Final Test Set Results
+====================================
+Model: SNUNet-CD
+Checkpoint: E:\UrbanEye\training\checkpoints\snunet\baseline\best_model.pth
+Best Epoch: 15
+Threshold: 0.60
+Parameters: 1927009
+Accuracy: 0.9113
+Precision: 0.9580
+Recall: 0.6909
+F1 Score: 0.8028
+IoU: 0.6706
+Dice: 0.8028
+
+TP: 26633
+TN: 107742
+FP: 1168
+FN: 11913

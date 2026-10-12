@@ -1,0 +1,53 @@
+# Secrets and local configuration
+.env
+**/.env
+!.env.example
+**/db.sqlite3
+
+# Python environments and caches
+urban_env/
+**/env/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Frontend dependencies and builds
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/*.local
+
+# Django/runtime data
+urbaneye_zip/backend/media/
+urbaneye_zip/backend/staticfiles/
+*.log
+
+# ML generated data and local downloads
+outputs/
+output/
+results/
+processed_data/
+temp-installer-cache/
+downloaded_scenes*/
+**/*.download
+**/*.tif
+**/*.tiff
+**/*.gpkg
+**/*.npy
+**/*.npz
+**/*.pt
+**/*.pth
+
+# Large/local source data
+raw data/
+bhoonidhi-inspection.json
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
