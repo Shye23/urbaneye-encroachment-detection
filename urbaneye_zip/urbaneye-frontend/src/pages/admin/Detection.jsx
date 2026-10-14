@@ -1,17 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  CircleMarker,
   MapContainer,
+  LayersControl,
   TileLayer,
   GeoJSON,
   Rectangle,
+  useMap,
   useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { apiFetch, apiJson, logout } from "../../api";
+import { apiJson, logout } from "../../api";
 
 const DEFAULT_CENTER = [20.5937, 78.9629];
 const DEFAULT_COLLECTION = "ResourceSat-2_LISS4-MX70_L2";
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
 function AreaSelector({ onSelect }) {
   useMapEvents({
@@ -38,6 +42,36 @@ function boundsToGeoJson(bounds) {
   };
 }
 
+function MapLocationController({ location }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!location) {
+      return;
+    }
+    const latitude = Number(location.lat);
+    const longitude = Number(location.lon);
+    if (Array.isArray(location.boundingbox) && location.boundingbox.length === 4) {
+      const [south, north, west, east] = location.boundingbox.map(Number);
+      map.fitBounds([[south, west], [north, east]], { padding: [24, 24] });
+    } else {
+      map.flyTo([latitude, longitude], 14);
+    }
+  }, [location, map]);
+
+  return null;
+}
+
+function MapSearchResult({ result, onSelect }) {
+  const selectResult = () => onSelect(result);
+
+  return (
+    <button type="button" className="detection-search-result" onClick={selectResult}>
+      <strong>{result.display_name}</strong>
+    </button>
+  );
+}
+
 function Detection() {
   const [corners, setCorners] = useState([]);
   const [startDate, setStartDate] = useState("2020-01-01");
@@ -46,6 +80,11 @@ function Detection() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchLocation, setSearchLocation] = useState(null);
 
   const aoi = corners.length === 2
     ? boundsToGeoJson([
@@ -84,6 +123,48 @@ function Detection() {
       setCorners((current) => [...current, latlng]);
     }
     setError("");
+  };
+
+  const searchLocationByName = async (event) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      setSearchError("Enter a place, village, district, or landmark name.");
+      return;
+    }
+
+    try {
+      setSearchLoading(true);
+      setSearchError("");
+      const params = new URLSearchParams({
+        q: query,
+        format: "jsonv2",
+        limit: "5",
+        addressdetails: "1",
+      });
+      const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error("The location search service is unavailable.");
+      }
+      const results = await response.json();
+      setSearchResults(results);
+      if (results.length === 0) {
+        setSearchError("No matching locations were found.");
+      }
+    } catch (err) {
+      setSearchResults([]);
+      setSearchError(err.message || "Unable to search for that location.");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSearchResult = (result) => {
+    setSearchLocation(result);
+    setSearchResults([]);
   };
 
   const submitJob = async (event) => {
@@ -156,12 +237,62 @@ function Detection() {
               Click two opposite corners to define the area of interest.
               Click again after the second corner to replace the selection.
             </div>
+            <form className="detection-map-search" onSubmit={searchLocationByName}>
+              <label htmlFor="detection-location-search">Find a location</label>
+              <div className="detection-search-row">
+                <input
+                  id="detection-location-search"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search village, city, district, or landmark"
+                  aria-label="Search for a map location"
+                />
+                <button type="submit" className="outline-button" disabled={searchLoading}>
+                  {searchLoading ? "Searching..." : "Search"}
+                </button>
+              </div>
+              {searchError && <p className="detection-search-error">{searchError}</p>}
+              {searchResults.length > 0 && (
+                <div className="detection-search-results">
+                  {searchResults.map((result) => (
+                    <MapSearchResult
+                      key={`${result.place_id}-${result.lat}-${result.lon}`}
+                      result={result}
+                      onSelect={handleSearchResult}
+                    />
+                  ))}
+                </div>
+              )}
+              <p className="detection-search-attribution">
+                Search data © OpenStreetMap contributors
+              </p>
+            </form>
             <MapContainer center={DEFAULT_CENTER} zoom={5} className="detection-map">
-              <TileLayer
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+              <LayersControl position="topright">
+                <LayersControl.BaseLayer checked name="Street map">
+                  <TileLayer
+                    attribution="&copy; OpenStreetMap contributors"
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="Satellite imagery">
+                  <TileLayer
+                    attribution="Tiles &copy; Esri"
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    maxZoom={19}
+                  />
+                </LayersControl.BaseLayer>
+              </LayersControl>
               <AreaSelector onSelect={handleMapSelection} />
+              <MapLocationController location={searchLocation} />
+              {searchLocation && (
+                <CircleMarker
+                  center={[Number(searchLocation.lat), Number(searchLocation.lon)]}
+                  radius={7}
+                  pathOptions={{ color: "#8d390d", fillColor: "#f6a04d", fillOpacity: 0.9 }}
+                />
+              )}
               {corners.length === 2 && (
                 <Rectangle
                   bounds={[
